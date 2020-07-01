@@ -1,0 +1,2 @@
+useDynLib("sireinfectcaa6dd97")
+import(Rcpp)

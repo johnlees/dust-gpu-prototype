@@ -1,0 +1,4 @@
+Package: sireinfectcaa6dd97
+LinkingTo: Rcpp
+Imports: Rcpp
+Version: 0.0.1
