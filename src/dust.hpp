@@ -11,6 +11,9 @@
 #include <omp.h>
 #endif
 
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+
 template <typename T>
 class Particle {
 public:
@@ -24,24 +27,23 @@ public:
     _step(step),
     _y(_model.initial(_step)),
     _y_swap(_model.size()) {
+      _y_device = _y;
+      _y_swap_device = _y_swap;
   }
 
-  void run(const size_t step_end, rng_t& rng) {
-    while (_step < step_end) {
-      _model.update(_step, _y, rng, _y_swap);
-      _step++;
-      std::swap(_y, _y_swap);
-    }
-  }
+  real_t * y_addr() { return thrust::raw_pointer_cast(&_y_device[0]) };
+  real_t * y_swap_addr() { return thrust::raw_pointer_cast(&_y_swap_device[0]) };
 
   void state(const std::vector<size_t>& index_y,
              typename std::vector<real_t>::iterator end_state) const {
+    _y = _y_device;
     for (size_t i = 0; i < index_y.size(); ++i) {
       *(end_state + i) = _y[index_y[i]];
     }
   }
 
   void state_full(typename std::vector<real_t>::iterator end_state) const {
+    _y = _y_device;
     for (size_t i = 0; i < _y.size(); ++i) {
       *(end_state + i) = _y[i];
     }
@@ -56,11 +58,14 @@ public:
   }
 
   void swap() {
+    _y = _y_device;
+    _y_swap = _y_swap_device;
     std::swap(_y, _y_swap);
   }
 
   void update(const Particle<T> other) {
     _y_swap = other._y;
+    _y_swap_device = _y_swap;
   }
 
 private:
@@ -69,6 +74,8 @@ private:
 
   std::vector<real_t> _y;
   std::vector<real_t> _y_swap;
+  thrust::device_vector<real_t> _y_device;
+  thrust::device_vector<real_t> _y_swap_device;
 };
 
 template <typename T>
@@ -86,9 +93,31 @@ public:
     _index_y(index_y),
     _n_threads(n_threads),
     _rng(n_generators, seed) {
+    std::vector<real_t*> y_ptrs;
+    std::vector<real_t*> y_swap_ptrs;
     for (size_t i = 0; i < n_particles; ++i) {
       _particles.push_back(Particle<T>(data, step));
+      y_ptrs.push_back(_particles.y_addr());
+      y_swap_ptrs.push_back(_particles.y_swap_addr());
     }
+    _model = new T(data, step);
+    cudaMallocManaged((void** )&_model_device, sizeof(T));
+    cudaMemcpy(_model_device, _model, sizeof(T),
+	              cudaMemcpyHostToDevice);
+
+    cudaMallocManaged((void** )&_particle_y_addrs, y_ptrs.size() * sizeof(real_t*));
+    cudaMemcpy(_particle_y_addrs, y_ptrs.data(), y_ptrs.size() * sizeof(real_t*),
+	              cudaMemcpyHostToDevice);
+    cudaMallocManaged((void** )&_particle_y_swap_addrs, y_swap_ptrs.size() * sizeof(real_t*));
+    cudaMemcpy(_particle_y_addrs, y_swap_ptrs.data(), y_swap_ptrs.size() * sizeof(real_t*),
+	              cudaMemcpyHostToDevice)
+  }
+
+  ~Dust() {
+    delete _model;
+    cudaFree(_model_device);
+    cudaFree(_particle_y_addrs);
+    cudaFree(_particle_y_swap_addrs);
   }
 
   void reset(const init_t data, const size_t step) {
@@ -99,28 +128,39 @@ public:
     }
   }
 
-  void run(const size_t step_end) {
-    #pragma omp parallel num_threads(_n_threads)
-    {
-      // Making this monotonic:static gives us a reliable sequence
-      // through the data, forcing each thread to move through with a
-      // stride of n_threads. However, this requires relatively recent
-      // openmp (>= 4.5, released in 2015) so we will fall back on
-      // ordered which will work over more versions at the risk of
-      // being slower if there is any variation in how long each
-      // iteration takes.
-#ifdef OPENMP_HAS_MONOTONIC
-      #pragma omp for schedule(monotonic:static, 1)
-#else
-      #pragma omp for schedule(static, 1) ordered
-#endif
-      for (size_t i = 0; i < _particles.size(); ++i) {
-#ifndef OPENMP_HAS_MONOTONIC
-        #pragma omp ordered
-#endif
-        _particles[i].run(step_end, pick_generator(i));
+  __global__
+  void run_particles(T* _model_device,
+                    real_t** particle_y,
+                    real_t** particle_y_swap,
+                    size_t n_particles,
+                    size_t step,
+                    size_t step_end) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    for (long long p_idx = index; p_idx < n_particles; p_idx += stride) {
+      size_t curr_step = step
+      while (curr_step < step_end) {
+        _model_device->update(curr_step, particle_y[p_idx], rng, particle_y_swap[p_idx]);
+        curr_step++;
+        for (int i = 0; i < y_len; i++) {
+          real_t tmp = particle_y[p_idx][i];
+          particle_y[p_idx][i] = particle_y_swap[p_idx][i];
+          particle_y_swap[p_idx][i] = tmp;
+        }
       }
     }
+  }
+
+  void run(const size_t step_end) {
+    const size_t blockSize = 32; // Check later
+    const size_t blockCount = (_particles.size() + blockSize - 1) / blockSize;
+    run_particles<<<blockCount, blockSize>>(_model_device,
+                                            _particle_y_addrs,
+                                            _particle_y_swap_addrs,
+                                            _particles.size(),
+                                            this->step(),
+                                            step_end);
+    // TODO: write step end back to particles
   }
 
   void state(std::vector<real_t>& end_state) const {
@@ -187,6 +227,11 @@ private:
   const size_t _n_threads;
   dust::pRNG<real_t, int_t> _rng;
   std::vector<Particle<T>> _particles;
+
+  T* _model;
+  T* _model_device;
+  real_t** _particle_y_addrs;
+  real_t** _particle_y_swap_addrs;
 
   // For 10 particles, 4 generators and 1, 2, 4 threads we want this:
   //

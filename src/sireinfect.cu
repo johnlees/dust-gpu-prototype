@@ -19,7 +19,7 @@ public:
     real_t p_RS;
     real_t S_ini;
   };
-  __host__ __device__
+  __device__
   sireinfect(const init_t& data): internal(data) {
   }
   size_t size() {
@@ -32,7 +32,8 @@ public:
     state[2] = internal.initial_R;
     return state;
   }
-  void update(size_t step, const std::vector<real_t>& state, dust::RNG<real_t, int_t>& rng, std::vector<real_t>& state_next) {
+  __device__
+  void update(size_t step, const real_t * state, dust::RNG<real_t, int_t> * rng, real_t * state_next) {
     const real_t S = state[0];
     const real_t I = state[1];
     const real_t R = state[2];
