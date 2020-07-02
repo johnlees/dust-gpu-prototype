@@ -1,7 +1,7 @@
 #ifndef DUST_DUST_HPP
 #define DUST_DUST_HPP
 
-#include <dust/rng.hpp>
+#include "rng.hpp"
 
 #include <utility>
 #ifdef _OPENMP
