@@ -34,14 +34,21 @@ public:
   }
   __device__
   void update(size_t step, const real_t * state, dust::RNG<real_t, int_t> * rng, real_t * state_next) {
+    // TODO: state and state_next will not be coalesced read/write
+    // A 2D array, transposed, would be better
     const real_t S = state[0];
     const real_t I = state[1];
     const real_t R = state[2];
     real_t N = S + I + R;
-    real_t n_IR = rng.rbinom(std::round(I), internal.p_IR);
-    real_t n_RS = rng.rbinom(std::round(R), internal.p_RS);
-    real_t p_SI = 1 - std::exp(- internal.beta * I / (real_t) N);
-    real_t n_SI = rng.rbinom(std::round(S), p_SI);
+    // TODO: pass the rng state, not an rng object
+    // TODO: make sure the internal is accessible on the device (mallocManaged?)
+    real_t n_IR = rng.rbinom(rintf(I), internal.p_IR);
+    real_t n_RS = rng.rbinom(rintf(R), internal.p_RS);
+    //real_t p_SI = 1 - std::exp(- internal.beta * I / (real_t) N);
+    // NB - this is specific to a float, need to think about this if real_t = double
+    real_t p_SI = 1 - __expf(- internal.beta * I / (real_t) N);
+    real_t n_SI = rng.rbinom(rintf(S), p_SI);
+    // NB - Make sure that state is read only once, and state_next is written only once
     state_next[2] = R + n_IR - n_RS;
     state_next[1] = I + n_SI - n_IR;
     state_next[0] = S - n_SI + n_RS;

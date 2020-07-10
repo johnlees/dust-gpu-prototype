@@ -97,25 +97,23 @@ public:
     std::vector<real_t*> y_swap_ptrs;
     for (size_t i = 0; i < n_particles; ++i) {
       _particles.push_back(Particle<T>(data, step));
-      y_ptrs.push_back(_particles.y_addr());
-      y_swap_ptrs.push_back(_particles.y_swap_addr());
+      y_ptrs.push_back(_particles.back().y_addr());
+      y_swap_ptrs.push_back(_particles.back().y_swap_addr());
     }
-    _model = new T(data, step);
-    cudaMallocManaged((void** )&_model_device, sizeof(T));
-    cudaMemcpy(_model_device, _model, sizeof(T),
-	              cudaMemcpyHostToDevice);
+    cudaMallocManaged((void** )&_model, sizeof(T));
+    *_model = T(data, step);
 
-    cudaMallocManaged((void** )&_particle_y_addrs, y_ptrs.size() * sizeof(real_t*));
+    cudaMalloc((void** )&_particle_y_addrs, y_ptrs.size() * sizeof(real_t*));
     cudaMemcpy(_particle_y_addrs, y_ptrs.data(), y_ptrs.size() * sizeof(real_t*),
 	              cudaMemcpyHostToDevice);
-    cudaMallocManaged((void** )&_particle_y_swap_addrs, y_swap_ptrs.size() * sizeof(real_t*));
+    cudaMalloc((void** )&_particle_y_swap_addrs, y_swap_ptrs.size() * sizeof(real_t*));
     cudaMemcpy(_particle_y_addrs, y_swap_ptrs.data(), y_swap_ptrs.size() * sizeof(real_t*),
 	              cudaMemcpyHostToDevice)
   }
 
   ~Dust() {
-    delete _model;
-    cudaFree(_model_device);
+    delete ;
+    cudaFree(_model);
     cudaFree(_particle_y_addrs);
     cudaFree(_particle_y_swap_addrs);
   }
@@ -129,7 +127,7 @@ public:
   }
 
   __global__
-  void run_particles(T* _model_device,
+  void run_particles(T* model,
                     real_t** particle_y,
                     real_t** particle_y_swap,
                     size_t n_particles,
@@ -140,7 +138,7 @@ public:
     for (long long p_idx = index; p_idx < n_particles; p_idx += stride) {
       size_t curr_step = step
       while (curr_step < step_end) {
-        _model_device->update(curr_step, particle_y[p_idx], rng, particle_y_swap[p_idx]);
+        model->update(curr_step, particle_y[p_idx], rng, particle_y_swap[p_idx]);
         curr_step++;
         for (int i = 0; i < y_len; i++) {
           real_t tmp = particle_y[p_idx][i];
@@ -154,7 +152,7 @@ public:
   void run(const size_t step_end) {
     const size_t blockSize = 32; // Check later
     const size_t blockCount = (_particles.size() + blockSize - 1) / blockSize;
-    run_particles<<<blockCount, blockSize>>(_model_device,
+    run_particles<<<blockCount, blockSize>>(_model,
                                             _particle_y_addrs,
                                             _particle_y_swap_addrs,
                                             _particles.size(),
@@ -229,7 +227,6 @@ private:
   std::vector<Particle<T>> _particles;
 
   T* _model;
-  T* _model_device;
   real_t** _particle_y_addrs;
   real_t** _particle_y_swap_addrs;
 
