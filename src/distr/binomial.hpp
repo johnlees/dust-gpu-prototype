@@ -23,6 +23,7 @@ double binomial_inversion(double n, double prob, uint64_t* rng_state) {
   return num_geom;
 }
 
+__device__
 inline double stirling_approx_tail(double k) {
   static double kTailValues[] = {0.0810614667953272,  0.0413406959554092,
                                  0.0276779256849983,  0.02079067210376509,
@@ -37,6 +38,7 @@ inline double stirling_approx_tail(double k) {
 }
 
 // https://www.tandfonline.com/doi/abs/10.1080/00949659308811496
+__device__
 inline double btrs(double n, double p, uint64_t* rng_state) {
   // This is spq in the paper.
   const double stddev = sqrt(n * p * (1 - p));
@@ -88,6 +90,7 @@ inline double btrs(double n, double p, uint64_t* rng_state) {
 }
 
 template <typename real_t, typename int_t>
+__device__
 int_t rbinom(uint64_t* rng_state, int_t n, real_t p) {
   int_t draw;
 
