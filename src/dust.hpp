@@ -120,8 +120,8 @@ private:
   T _model;
   size_t _step;
 
-  std::vector<real_t> _y;
-  std::vector<real_t> _y_swap;
+  thrust::host_vector<real_t> _y;
+  thrust::host_vector<real_t> _y_swap;
   thrust::device_vector<real_t> _y_device;
   thrust::device_vector<real_t> _y_swap_device;
 };
