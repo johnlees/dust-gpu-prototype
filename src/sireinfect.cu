@@ -151,7 +151,8 @@ int main (int argc, char **argv) {
   data.p_IR = 1 - std::exp(- data.gamma);
   data.p_RS = 1 - std::exp(- data.alpha);
 
-  Dust<sireinfect> dust_obj(data, 0, {0}, n_particles, 1, 0, n_steps);
+  std::vector<size_t> index_y = {0};
+  Dust<sireinfect> dust_obj(data, 0, index_y, n_particles, 1, 0);
 
   // Run particles
   dust_obj.run(n_steps);
