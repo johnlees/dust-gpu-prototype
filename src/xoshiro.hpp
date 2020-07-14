@@ -1,6 +1,7 @@
 #ifndef DUST_XOSHIRO_HPP
 #define DUST_XOSHIRO_HPP
 
+#include <cstdint>
 #include <vector>
 #include <limits>
 
@@ -16,51 +17,6 @@
 #define XOSHIRO_WIDTH 4
 
 namespace dust {
-
-__host__ __device__
-inline uint64_t gen_rand(uint64_t * const &state);
-
-class Xoshiro {
-public:
-  // Definitions to satisfy interface of URNG in C++11
-  typedef uint64_t result_type;
-  __host__
-  static constexpr uint64_t min() {
-    return std::numeric_limits<uint64_t>::min();
-  }
-  __host__
-  static constexpr uint64_t max() {
-    return std::numeric_limits<uint64_t>::max();
-  }
-
-  __host__
-  uint64_t operator()() {return(gen_rand(_state))};
-
-  __host__
-  T unif_rand() {
-    static std::uniform_real_distribution<T> unif_dist(0, 1);
-    return unif_dist(*this);
-  }
-
-  __host__
-  Xoshiro(uint64_t seed);
-
-  // Change internal state
-  __host__
-  void set_seed(uint64_t seed);
-  __host__
-  void jump();
-  __host__
-  void long_jump();
-
-  // Get state
-  __host__
-  uint64_t* get_rng_state() { return _state; }
-
-private:
-  static uint64_t splitmix64(uint64_t seed);
-  uint64_t _state[XOSHIRO_WIDTH];
-};
 
 __host__ __device__
 static inline uint64_t rotl(const uint64_t x, int k) {
@@ -85,18 +41,61 @@ inline uint64_t gen_rand(uint64_t * const &state) {
   return result;
 }
 
-__device__
-inline float device_unif_rand(uint64_t * const &state) {
-  return(__double2float_rn(device_unif_rand(state)));
-}
+class Xoshiro {
+public:
+  // Definitions to satisfy interface of URNG in C++11
+  typedef uint64_t result_type;
+  __host__
+  static constexpr uint64_t min() {
+    return std::numeric_limits<uint64_t>::min();
+  }
+  __host__
+  static constexpr uint64_t max() {
+    return std::numeric_limits<uint64_t>::max();
+  }
+
+  __host__
+  uint64_t operator()() { return(gen_rand(_state)); };
+
+  /*
+  __host__
+  T unif_rand() {
+    static std::uniform_real_distribution<T> unif_dist(0, 1);
+    return unif_dist(*this);
+  }
+  */
+
+  __host__
+  Xoshiro(uint64_t seed);
+
+  // Change internal state
+  __host__
+  void set_seed(uint64_t seed);
+  __host__
+  void jump();
+  __host__
+  void long_jump();
+
+  // Get state
+  __host__
+  uint64_t* get_rng_state() { return _state; }
+
+private:
+  static uint64_t splitmix64(uint64_t seed);
+  uint64_t _state[XOSHIRO_WIDTH];
+};
 
 __device__
 inline double device_unif_rand(uint64_t * const &state) {
   double rand =
     (__ddiv_rn(__ull2double_rn(gen_rand(state)),
-               __ull2double_rn(std::numeric_limits<uint64_t>::max() -
-                               std::numeric_limits<uint64_t>::min())));
+               __ull2double_rn(UINT64_MAX)));
   return rand;
+}
+
+__device__
+inline float device_unif_randf(uint64_t * const &state) {
+  return(__double2float_rn(device_unif_rand(state)));
 }
 
 __host__

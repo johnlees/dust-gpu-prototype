@@ -25,11 +25,11 @@ endif
 CUDA_LDLIBS=-lcudadevrt -lcudart_static
 
 CUDA_LDFLAGS = -L${CUDA_HOME}/targets/x86_64-linux/lib/stubs -L${CUDA_HOME}/targets/x86_64-linux/lib
-CUDAFLAGS =-Xcompiler -fPIC -Xptxas -dlcm=ca --cudart static --relocatable-device-code=true -gencode arch=compute_35,code=compute_35 -gencode arch=compute_50,code=sm_50 -gencode arch=compute_75,code=sm_75
+CUDAFLAGS =-Xcompiler -fPIC -Xptxas -dlcm=ca --cudart static --relocatable-device-code=true -gencode arch=compute_75,code=sm_75
 
 PROGRAMS=dust_test
 
-DUST_OBJS=sireinfect.o
+DUST_OBJS=sireinfect.cu.o
 
 all: $(PROGRAMS)
 

@@ -17,6 +17,47 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
+// Error checking of dynamic memory allocation on device
+// https://stackoverflow.com/a/14038590
+#define cdpErrchk(ans) { cdpAssert((ans), __FILE__, __LINE__); }
+__host__ __device__ void cdpAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      printf("GPU kernel assert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) assert(0);
+   }
+}
+
+template <typename T>
+__global__
+void run_particles(T* model,
+                  real_t** particle_y,
+                  real_t** particle_y_swap,
+                  uint64_t* rng_state,
+                  size_t y_len,
+                  size_t n_particles,
+                  size_t step,
+                  size_t step_end) {
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+  for (long long p_idx = index; p_idx < n_particles; p_idx += stride) {
+    size_t curr_step = step;
+    while (curr_step < step_end) {
+      model->update(curr_step,
+                    particle_y[p_idx],
+                    rng_state + p_idx * XOSHIRO_WIDTH,
+                    particle_y_swap[p_idx]);
+      curr_step++;
+      for (int i = 0; i < y_len; i++) {
+        real_t tmp = particle_y[p_idx][i];
+        particle_y[p_idx][i] = particle_y_swap[p_idx][i];
+        particle_y_swap[p_idx][i] = tmp;
+      }
+    }
+  }
+}
+
 template <typename T>
 class Particle {
 public:
@@ -34,8 +75,8 @@ public:
       _y_swap_device = _y_swap;
   }
 
-  real_t * y_addr() { return thrust::raw_pointer_cast(&_y_device[0]) };
-  real_t * y_swap_addr() { return thrust::raw_pointer_cast(&_y_swap_device[0]) };
+  real_t * y_addr() { return thrust::raw_pointer_cast(&_y_device[0]); };
+  real_t * y_swap_addr() { return thrust::raw_pointer_cast(&_y_swap_device[0]); };
 
   void state(const std::vector<size_t>& index_y,
              typename std::vector<real_t>::iterator end_state) const {
@@ -96,8 +137,9 @@ public:
   Dust(const init_t data, const size_t step,
        const std::vector<size_t> index_y,
        const size_t n_particles,
+       const size_t n_threads,
        const size_t seed) :
-    _index_y(index_y) {
+    _index_y(index_y), _n_threads(n_threads) {
 
     std::vector<real_t*> y_ptrs;
     std::vector<real_t*> y_swap_ptrs;
@@ -115,7 +157,7 @@ public:
 
     // Copy the model
     cdpErrchk(cudaMallocManaged((void** )&_model, sizeof(T)));
-    *_model = new T(data, step);
+    *_model = T(data, step);
 
     // Set up rng streams for each particle
     cdpErrchk(cudaMallocManaged((void** )&_rng_state, n_particles * XOSHIRO_WIDTH * sizeof(uint64_t)));
@@ -147,10 +189,11 @@ public:
   void run(const size_t step_end) {
     const size_t blockSize = 32; // Check later
     const size_t blockCount = (_particles.size() + blockSize - 1) / blockSize;
-    run_particles<<<blockCount, blockSize>>(_model,
+    run_particles<<<blockCount, blockSize>>>(_model,
                                             _particle_y_addrs,
                                             _particle_y_swap_addrs,
                                             _rng_state,
+                                            _model->size(),
                                             _particles.size(),
                                             this->step(),
                                             step_end);
@@ -236,34 +279,5 @@ private:
   }
   */
 };
-
-template <typename T>
-__global__
-void run_particles(T* model,
-                  real_t** particle_y,
-                  real_t** particle_y_swap,
-                  uint64_t* rng_state,
-                  size_t y_len,
-                  size_t n_particles,
-                  size_t step,
-                  size_t step_end) {
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = blockDim.x * gridDim.x;
-  for (long long p_idx = index; p_idx < n_particles; p_idx += stride) {
-    size_t curr_step = step;
-    while (curr_step < step_end) {
-      model->update(curr_step,
-                    particle_y[p_idx],
-                    rng[p_idx * XOSHIRO_WIDTH],
-                    particle_y_swap[p_idx]);
-      curr_step++;
-      for (int i = 0; i < y_len; i++) {
-        real_t tmp = particle_y[p_idx][i];
-        particle_y[p_idx][i] = particle_y_swap[p_idx][i];
-        particle_y_swap[p_idx][i] = tmp;
-      }
-    }
-  }
-}
 
 #endif
