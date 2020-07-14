@@ -198,6 +198,7 @@ public:
                                             this->step(),
                                             step_end);
     // write step end back to particles
+    cudaDeviceSynchronize();
     for (size_t i = 0; i < _particles.size(); ++i) {
       _particles[i].set_step(step_end);
     }
