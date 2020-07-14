@@ -157,7 +157,7 @@ public:
 
     // Copy the model
     cdpErrchk(cudaMallocManaged((void** )&_model, sizeof(T)));
-    *_model = T(data, step);
+    *_model = T(data);
 
     // Set up rng streams for each particle
     cdpErrchk(cudaMallocManaged((void** )&_rng_state, n_particles * XOSHIRO_WIDTH * sizeof(uint64_t)));

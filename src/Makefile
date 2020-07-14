@@ -15,14 +15,14 @@ ifeq ($(UNAME_S),Linux)
 	ifdef PROFILE
 		CXXFLAGS+= -Wl,--compress-debug-sections=none
 	endif
-	LDLIBS+= -lpthread -lgfortran -lm -ldl -lrt
+	LDLIBS+= -lpthread -lm -ldl -lrt
 	LDFLAGS=-Wl,-as-needed
 endif
 ifeq ($(UNAME_S),Darwin)
 	LDLIBS+= -pthread
 endif
 
-CUDA_LDLIBS=-lcudadevrt -lcudart_static
+CUDA_LDLIBS=-lcudadevrt -lcudart_static $(LDLIBS)
 
 CUDA_LDFLAGS = -L${CUDA_HOME}/targets/x86_64-linux/lib/stubs -L${CUDA_HOME}/targets/x86_64-linux/lib
 CUDAFLAGS =-Xcompiler -fPIC -Xptxas -dlcm=ca --cudart static --relocatable-device-code=true -gencode arch=compute_75,code=sm_75
