@@ -1,7 +1,10 @@
 #ifndef DUST_DUST_HPP
 #define DUST_DUST_HPP
 
-#include "rng.hpp"
+// Not sure if we want the RNG object in CUDA
+// #include "rng.hpp"
+#include "xoshiro.hpp"
+#include "distr/binomial.hpp"
 
 #include <utility>
 #ifdef _OPENMP
@@ -20,7 +23,7 @@ public:
   typedef typename T::init_t init_t;
   typedef typename T::int_t int_t;
   typedef typename T::real_t real_t;
-  typedef typename dust::RNG<real_t, int_t> rng_t;
+  // typedef typename dust::RNG<real_t, int_t> rng_t;
 
   Particle(init_t data, size_t step) :
     _model(data),
@@ -51,6 +54,10 @@ public:
 
   size_t size() const {
     return _y.size();
+  }
+
+  void set_step(size_t step) {
+    _step = step;
   }
 
   size_t step() const {
@@ -84,15 +91,14 @@ public:
   typedef typename T::init_t init_t;
   typedef typename T::int_t int_t;
   typedef typename T::real_t real_t;
-  typedef typename dust::RNG<real_t, int_t> rng_t;
+  // typedef typename dust::RNG<real_t, int_t> rng_t;
 
   Dust(const init_t data, const size_t step,
        const std::vector<size_t> index_y,
-       const size_t n_particles, const size_t n_threads,
-       const size_t n_generators, const size_t seed) :
-    _index_y(index_y),
-    _n_threads(n_threads),
-    _rng(n_generators, seed) {
+       const size_t n_particles,
+       const size_t seed) :
+    _index_y(index_y) {
+
     std::vector<real_t*> y_ptrs;
     std::vector<real_t*> y_swap_ptrs;
     for (size_t i = 0; i < n_particles; ++i) {
@@ -100,22 +106,34 @@ public:
       y_ptrs.push_back(_particles.back().y_addr());
       y_swap_ptrs.push_back(_particles.back().y_swap_addr());
     }
-    cudaMallocManaged((void** )&_model, sizeof(T));
-    *_model = T(data, step);
+    cdpErrchk(cudaMalloc((void** )&_particle_y_addrs, y_ptrs.size() * sizeof(real_t*)));
+    cdpErrchk(cudaMemcpy(_particle_y_addrs, y_ptrs.data(), y_ptrs.size() * sizeof(real_t*),
+	              cudaMemcpyHostToDevice));
+    cdpErrchk(cudaMalloc((void** )&_particle_y_swap_addrs, y_swap_ptrs.size() * sizeof(real_t*)));
+    cdpErrchk(cudaMemcpy(_particle_y_addrs, y_swap_ptrs.data(), y_swap_ptrs.size() * sizeof(real_t*),
+	              cudaMemcpyHostToDevice));
 
-    cudaMalloc((void** )&_particle_y_addrs, y_ptrs.size() * sizeof(real_t*));
-    cudaMemcpy(_particle_y_addrs, y_ptrs.data(), y_ptrs.size() * sizeof(real_t*),
-	              cudaMemcpyHostToDevice);
-    cudaMalloc((void** )&_particle_y_swap_addrs, y_swap_ptrs.size() * sizeof(real_t*));
-    cudaMemcpy(_particle_y_addrs, y_swap_ptrs.data(), y_swap_ptrs.size() * sizeof(real_t*),
-	              cudaMemcpyHostToDevice)
+    // Copy the model
+    cdpErrchk(cudaMallocManaged((void** )&_model, sizeof(T)));
+    *_model = new T(data, step);
+
+    // Set up rng streams for each particle
+    cdpErrchk(cudaMallocManaged((void** )&_rng_state, n_particles * XOSHIRO_WIDTH * sizeof(uint64_t)));
+    dust::Xoshiro rng(seed);
+    for (int i = 0; i < n_particles; i++) {
+      uint64_t* current_state = rng.get_rng_state();
+      for (int state_idx = 0; state_idx < XOSHIRO_WIDTH; state_idx++) {
+        _rng_state[i * XOSHIRO_WIDTH + state_idx] = current_state[state_idx];
+      }
+      rng.jump();
+    }
   }
 
   ~Dust() {
-    delete ;
-    cudaFree(_model);
-    cudaFree(_particle_y_addrs);
-    cudaFree(_particle_y_swap_addrs);
+    cdpErrchk(cudaFree(_model));
+    cdpErrchk(cudaFree(_rng_state));
+    cdpErrchk(cudaFree(_particle_y_addrs));
+    cdpErrchk(cudaFree(_particle_y_swap_addrs));
   }
 
   void reset(const init_t data, const size_t step) {
@@ -126,39 +144,20 @@ public:
     }
   }
 
-  __global__
-  void run_particles(T* model,
-                    real_t** particle_y,
-                    real_t** particle_y_swap,
-                    size_t n_particles,
-                    size_t step,
-                    size_t step_end) {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-    for (long long p_idx = index; p_idx < n_particles; p_idx += stride) {
-      size_t curr_step = step
-      while (curr_step < step_end) {
-        model->update(curr_step, particle_y[p_idx], rng, particle_y_swap[p_idx]);
-        curr_step++;
-        for (int i = 0; i < y_len; i++) {
-          real_t tmp = particle_y[p_idx][i];
-          particle_y[p_idx][i] = particle_y_swap[p_idx][i];
-          particle_y_swap[p_idx][i] = tmp;
-        }
-      }
-    }
-  }
-
   void run(const size_t step_end) {
     const size_t blockSize = 32; // Check later
     const size_t blockCount = (_particles.size() + blockSize - 1) / blockSize;
     run_particles<<<blockCount, blockSize>>(_model,
                                             _particle_y_addrs,
                                             _particle_y_swap_addrs,
+                                            _rng_state,
                                             _particles.size(),
                                             this->step(),
                                             step_end);
-    // TODO: write step end back to particles
+    // write step end back to particles
+    for (size_t i = 0; i < _particles.size(); ++i) {
+      _particles[i].set_step(step_end);
+    }
   }
 
   void state(std::vector<real_t>& end_state) const {
@@ -223,40 +222,48 @@ public:
 private:
   const std::vector<size_t> _index_y;
   const size_t _n_threads;
-  dust::pRNG<real_t, int_t> _rng;
+  //dust::pRNG<real_t, int_t> _rng;
   std::vector<Particle<T>> _particles;
 
   T* _model;
   real_t** _particle_y_addrs;
   real_t** _particle_y_swap_addrs;
+  uint64_t* _rng_state;
 
-  // For 10 particles, 4 generators and 1, 2, 4 threads we want this:
-  //
-  // i:  0 1 2 3 4 5 6 7 8 9
-  // g:  0 1 2 3 0 1 2 3 0 1 - rng used for the iteration
-  // t1: 0 0 0 0 0 0 0 0 0 0 - thread index that executes each with 1 thread
-  // t2: 0 1 0 1 0 1 0 1 0 1 - ...with 2
-  // t4: 0 1 2 3 0 1 2 3 0 1 - ...with 4
-  //
-  // So with
-  // - 1 thread: 0: (0 1 2 3)
-  // - 2 threads 0: (0 2), 1: (1 3)
-  // - 4 threads 0: (0), 1: (1), 2: (2), 3: (3)
-  //
-  // So the rng number can be picked up directly by doing
-  //
-  //   i % _rng.size()
-  //
-  // though this relies on the openmp scheduler, which technically I
-  // think we should not be doing. We could derive it from the thread
-  // index to provide a set of allowable rngs but this will be harder
-  // to get deterministic.
-  //
-  // I'm not convinced that this will always do the Right Thing with
-  // loop leftovers either.
+/*
   rng_t& pick_generator(const size_t i) {
     return _rng(i % _rng.size());
   }
+  */
 };
+
+template <typename T>
+__global__
+void run_particles(T* model,
+                  real_t** particle_y,
+                  real_t** particle_y_swap,
+                  uint64_t* rng_state,
+                  size_t y_len,
+                  size_t n_particles,
+                  size_t step,
+                  size_t step_end) {
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+  for (long long p_idx = index; p_idx < n_particles; p_idx += stride) {
+    size_t curr_step = step;
+    while (curr_step < step_end) {
+      model->update(curr_step,
+                    particle_y[p_idx],
+                    rng[p_idx * XOSHIRO_WIDTH],
+                    particle_y_swap[p_idx]);
+      curr_step++;
+      for (int i = 0; i < y_len; i++) {
+        real_t tmp = particle_y[p_idx][i];
+        particle_y[p_idx][i] = particle_y_swap[p_idx][i];
+        particle_y_swap[p_idx][i] = tmp;
+      }
+    }
+  }
+}
 
 #endif

@@ -6,14 +6,14 @@
 namespace dust {
 namespace distr {
 
-template <typename rng_t>
-double binomial_inversion(double n, double prob, rng_t& generator) {
+__device__
+double binomial_inversion(double n, double prob, uint64_t* rng_state) {
   double geom_sum = 0;
   double num_geom = 0;
 
   while (true) {
-    double r = generator.unif_rand();
-    double geom = std::ceil(std::log(r) / std::log1p(-prob));
+    double r = device_unif_rand(rng_state);
+    double geom = ceil(log(r) / log1p(-prob));
     geom_sum += geom;
     if (geom_sum > n) {
       break;
@@ -37,10 +37,9 @@ inline double stirling_approx_tail(double k) {
 }
 
 // https://www.tandfonline.com/doi/abs/10.1080/00949659308811496
-template <typename rng_t>
-inline double btrs(double n, double p, rng_t& generator) {
+inline double btrs(double n, double p, uint64_t* rng_state) {
   // This is spq in the paper.
-  const double stddev = std::sqrt(n * p * (1 - p));
+  const double stddev = sqrt(n * p * (1 - p));
 
   // Other coefficients for Transformed Rejection sampling.
   const double b = 1.15 + 2.53 * stddev;
@@ -50,14 +49,14 @@ inline double btrs(double n, double p, rng_t& generator) {
   const double r = p / (1 - p);
 
   const double alpha = (2.83 + 5.1 / b) * stddev;
-  const double m = std::floor((n + 1) * p);
+  const double m = floor((n + 1) * p);
 
   while (true) {
-    double u = generator.unif_rand();
-    double v = generator.unif_rand();
+    double u = device_unif_rand(rng_state);
+    double v = device_unif_rand(rng_state);
     u = u - 0.5;
-    double us = 0.5 - std::fabs(u);
-    double k = std::floor((2 * a / us + b) * u + c);
+    double us = 0.5 - fabs(u);
+    double k = floor((2 * a / us + b) * u + c);
 
     // Region for which the box is tight, and we
     // can return our calculated value This should happen
@@ -75,11 +74,11 @@ inline double btrs(double n, double p, rng_t& generator) {
     // This deviates from Hormann's BRTS algorithm, as there is a log missing.
     // For all (u, v) pairs outside of the bounding box, this calculates the
     // transformed-reject ratio.
-    v = std::log(v * alpha / (a / (us * us) + b));
+    v = log(v * alpha / (a / (us * us) + b));
     double upperbound =
-      ((m + 0.5) * std::log((m + 1) / (r * (n - m + 1))) +
-       (n + 1) * std::log((n - m + 1) / (n - k + 1)) +
-       (k + 0.5) * std::log(r * (n - k + 1) / (k + 1)) +
+      ((m + 0.5) * log((m + 1) / (r * (n - m + 1))) +
+       (n + 1) * log((n - m + 1) / (n - k + 1)) +
+       (k + 0.5) * log(r * (n - k + 1) / (k + 1)) +
        stirling_approx_tail(m) + stirling_approx_tail(n - m) -
        stirling_approx_tail(k) - stirling_approx_tail(n - k));
     if (v <= upperbound) {
@@ -88,8 +87,8 @@ inline double btrs(double n, double p, rng_t& generator) {
   }
 }
 
-template <typename real_t, typename int_t, typename rng_t>
-int_t rbinom(rng_t& generator, int_t n, real_t p) {
+template <typename real_t, typename int_t>
+int_t rbinom(uint64_t* rng_state, int_t n, real_t p) {
   int_t draw;
 
   // Early exit:
@@ -114,11 +113,9 @@ int_t rbinom(rng_t& generator, int_t n, real_t p) {
   }
 
   if (n * q >= 10) {
-    // Uses 256 random numbers
-    draw = static_cast<int_t>(btrs(n, q, generator));
+    draw = static_cast<int_t>(btrs(n, q, rng_state));
   } else {
-    // Uses 42 random numbers
-    draw = static_cast<int_t>(binomial_inversion(n, q, generator));
+    draw = static_cast<int_t>(binomial_inversion(n, q, rng_state));
   }
 
   if (p > 0.5) {
