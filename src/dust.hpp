@@ -79,14 +79,14 @@ public:
   real_t * y_swap_addr() { return thrust::raw_pointer_cast(&_y_swap_device[0]); };
 
   void state(const std::vector<size_t>& index_y,
-             typename std::vector<real_t>::iterator end_state) const {
+             typename std::vector<real_t>::iterator end_state) {
     _y = _y_device;
     for (size_t i = 0; i < index_y.size(); ++i) {
       *(end_state + i) = _y[index_y[i]];
     }
   }
 
-  void state_full(typename std::vector<real_t>::iterator end_state) const {
+  void state_full(typename std::vector<real_t>::iterator end_state) {
     _y = _y_device;
     for (size_t i = 0; i < _y.size(); ++i) {
       *(end_state + i) = _y[i];
@@ -204,7 +204,7 @@ public:
     }
   }
 
-  void state(std::vector<real_t>& end_state) const {
+  void state(std::vector<real_t>& end_state) {
     #pragma omp parallel for schedule(static) num_threads(_n_threads)
     for (size_t i = 0; i < _particles.size(); ++i) {
       _particles[i].state(_index_y, end_state.begin() + i * _index_y.size());
@@ -212,14 +212,14 @@ public:
   }
 
   void state(std::vector<size_t> index_y,
-             std::vector<real_t>& end_state) const {
+             std::vector<real_t>& end_state) {
     #pragma omp parallel for schedule(static) num_threads(_n_threads)
     for (size_t i = 0; i < _particles.size(); ++i) {
       _particles[i].state(index_y, end_state.begin() + i * index_y.size());
     }
   }
 
-  void state_full(std::vector<real_t>& end_state) const {
+  void state_full(std::vector<real_t>& end_state) {
     const size_t n = n_state_full();
     #pragma omp parallel for schedule(static) num_threads(_n_threads)
     for (size_t i = 0; i < _particles.size(); ++i) {

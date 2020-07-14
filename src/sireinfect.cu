@@ -157,7 +157,7 @@ int main (int argc, char **argv) {
   Dust<sireinfect> dust_obj(data, 0, index_y, n_particles, 1, 0);
 
   // Run particles
-  std::vector<real_t> end_state(dust_obj.n_particles() * dust_obj.n_state())
+  std::vector<real_t> end_state(dust_obj.n_particles() * dust_obj.n_state());
   auto start = std::chrono::steady_clock::now();
   dust_obj.run(n_steps);
   dust_obj.state(end_state);
