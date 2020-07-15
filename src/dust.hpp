@@ -41,9 +41,11 @@ void run_particles(T* model,
                   size_t step_end) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = blockDim.x * gridDim.x;
-  for (size_t p_idx = index; p_idx < n_particles; p_idx += stride) {
-    size_t curr_step = step;
+  for (int p_idx = index; p_idx < n_particles; p_idx += stride) {
+    int curr_step = step;
     while (curr_step < step_end) {
+      //printf("idx:%d step:%d S:%f I:%f R:%f\n", p_idx, curr_step,
+      //  particle_y[p_idx][0], particle_y[p_idx][1], particle_y[p_idx][2]);
       model->update(curr_step,
                     particle_y[p_idx],
                     rng_state + p_idx * XOSHIRO_WIDTH,
@@ -154,7 +156,7 @@ public:
     cdpErrchk(cudaMemcpy(_particle_y_addrs, y_ptrs.data(), y_ptrs.size() * sizeof(real_t*),
 	              cudaMemcpyHostToDevice));
     cdpErrchk(cudaMalloc((void** )&_particle_y_swap_addrs, y_swap_ptrs.size() * sizeof(real_t*)));
-    cdpErrchk(cudaMemcpy(_particle_y_addrs, y_swap_ptrs.data(), y_swap_ptrs.size() * sizeof(real_t*),
+    cdpErrchk(cudaMemcpy(_particle_y_swap_addrs, y_swap_ptrs.data(), y_swap_ptrs.size() * sizeof(real_t*),
 	              cudaMemcpyHostToDevice));
 
     // Copy the model
@@ -191,6 +193,8 @@ public:
   void run(const size_t step_end) {
     const size_t blockSize = 32; // Check later
     const size_t blockCount = (_particles.size() + blockSize - 1) / blockSize;
+    // const size_t blockSize = 1;
+    // const size_t blockCount = 1;
     run_particles<<<blockCount, blockSize>>>(_model,
                                             _particle_y_addrs,
                                             _particle_y_swap_addrs,

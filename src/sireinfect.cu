@@ -85,13 +85,13 @@ int main (int argc, char **argv) {
   real_t beta = 0.2;
   real_t gamma = 0.1;
   int_t S_ini = 1000;
-  int_t I_ini = 0;
+  int_t I_ini = 10;
   int_t n_particles = 100;
   int_t n_steps = 10000;
 
   opterr = 0;
 
-  while ((c = getopt (argc, argv, "abgSIps:")) != -1)
+  while ((c = getopt (argc, argv, "a:b:g:S:I:p:s:")) != -1)
     switch (c) {
       case 'a':
         alpha_in = optarg;
@@ -163,7 +163,7 @@ int main (int argc, char **argv) {
   dust_obj.run(n_steps);
   dust_obj.state(end_state);
   auto end = std::chrono::steady_clock::now();
-  std::chrono::duration<double> elapsed_seconds = end-start;
+  std::chrono::duration<double> elapsed_seconds = end - start;
   std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
 
   // Print results

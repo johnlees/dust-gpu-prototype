@@ -1,8 +1,11 @@
 
 CXXFLAGS+=-Wall -Wextra -std=c++14 -fopenmp -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS
+CUDAFLAGS = --std c++14
 ifdef DEBUG
   CXXFLAGS+= -O0 -g
+  CUDAFLAGS = -g -G
 else ifdef PROFILE
+  CUDAFLAGS = -pg --generate-line-info
   CXXFLAGS+= -O2 -g -flto -fno-fat-lto-objects -fPIC -fvisibility=hidden
 else
   CXXFLAGS+= -O3 -flto -fno-fat-lto-objects -fPIC -fvisibility=hidden
@@ -25,7 +28,7 @@ endif
 CUDA_LDLIBS=-lcudadevrt -lcudart_static $(LDLIBS)
 
 CUDA_LDFLAGS = -L${CUDA_HOME}/targets/x86_64-linux/lib/stubs -L${CUDA_HOME}/targets/x86_64-linux/lib
-CUDAFLAGS = -Xcompiler -fPIC -Xptxas -dlcm=ca -Xcompiler -fopenmp --cudart static --relocatable-device-code=true -gencode arch=compute_75,code=sm_75
+CUDAFLAGS += -Xcompiler -fPIC -Xptxas -dlcm=ca -Xcompiler -fopenmp --cudart static --relocatable-device-code=true -gencode arch=compute_75,code=sm_75
 
 PROGRAMS=dust_test
 
