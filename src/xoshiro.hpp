@@ -24,7 +24,7 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 }
 
 __host__ __device__
-inline uint64_t gen_rand(uint64_t * const &state) {
+inline uint64_t gen_rand(uint64_t * state) {
   const uint64_t result = rotl(state[1] * 5, 7) * 9;
 
   const uint64_t t = state[1] << 17;
@@ -86,7 +86,7 @@ private:
 };
 
 __device__
-inline double device_unif_rand(uint64_t * const &state) {
+inline double device_unif_rand(uint64_t * state) {
   double rand =
     (__ddiv_rn(__ull2double_rn(gen_rand(state)),
                __ull2double_rn(UINT64_MAX)));
@@ -94,7 +94,7 @@ inline double device_unif_rand(uint64_t * const &state) {
 }
 
 __device__
-inline float device_unif_randf(uint64_t * const &state) {
+inline float device_unif_randf(uint64_t * state) {
   return(__double2float_rn(device_unif_rand(state)));
 }
 

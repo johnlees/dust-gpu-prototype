@@ -41,7 +41,7 @@ void run_particles(T* model,
                   size_t step_end) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = blockDim.x * gridDim.x;
-  for (long long p_idx = index; p_idx < n_particles; p_idx += stride) {
+  for (size_t p_idx = index; p_idx < n_particles; p_idx += stride) {
     size_t curr_step = step;
     while (curr_step < step_end) {
       model->update(curr_step,
@@ -49,11 +49,9 @@ void run_particles(T* model,
                     rng_state + p_idx * XOSHIRO_WIDTH,
                     particle_y_swap[p_idx]);
       curr_step++;
-      for (int i = 0; i < y_len; i++) {
-        real_t tmp = particle_y[p_idx][i];
-        particle_y[p_idx][i] = particle_y_swap[p_idx][i];
-        particle_y_swap[p_idx][i] = tmp;
-      }
+      real_t* tmp = particle_y[p_idx];
+      particle_y[p_idx] = particle_y_swap[p_idx];
+      particle_y_swap[p_idx] = tmp;
     }
   }
 }
@@ -80,6 +78,8 @@ public:
 
   void state(const std::vector<size_t>& index_y,
              typename std::vector<real_t>::iterator end_state) {
+    // TODO: efficiency of copying whole state each time, when only some of it
+    // is used? Random access would be better, if possible
     _y = _y_device;
     for (size_t i = 0; i < index_y.size(); ++i) {
       *(end_state + i) = _y[index_y[i]];
@@ -106,6 +106,8 @@ public:
   }
 
   void swap() {
+    thrust::swap(_y_device, _y_swap_device);
+    // Necessary to swap on host too?:
     _y = _y_device;
     _y_swap = _y_swap_device;
     std::swap(_y, _y_swap);
@@ -264,6 +266,10 @@ public:
   }
 
 private:
+  // delete move and copy
+  Dust ( const Dust & ) = delete;
+  Dust ( Dust && ) = delete;
+
   const std::vector<size_t> _index_y;
   const size_t _n_threads;
   //dust::pRNG<real_t, int_t> _rng;

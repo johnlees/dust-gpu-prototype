@@ -1,3 +1,4 @@
+// TODO: fix this
 typedef int int_t;
 typedef float real_t;
 
@@ -46,16 +47,16 @@ public:
   void update(size_t step, const real_t * state, uint64_t * rng_state, real_t * state_next) {
     // TODO: state and state_next will not be coalesced read/write
     // A 2D array, transposed, would be better
+    // Check that rng_state ends up in L1 cache
     const real_t S = state[0];
     const real_t I = state[1];
     const real_t R = state[2];
     real_t N = S + I + R;
-    // TODO: pass the rng state, not an rng object
-    // TODO: make sure the internal is accessible on the device (mallocManaged?)
     real_t n_IR = dust::distr::rbinom<real_t, int_t>(rng_state, rintf(I), internal.p_IR);
     real_t n_RS = dust::distr::rbinom<real_t, int_t>(rng_state, rintf(R), internal.p_RS);
     //real_t p_SI = 1 - std::exp(- internal.beta * I / (real_t) N);
     // NB - this is specific to a float, need to think about this if real_t = double
+    // exp should just be overloaded
     real_t p_SI = 1 - expf(- internal.beta * I / (real_t) N);
     real_t n_SI = dust::distr::rbinom<real_t, int_t>(rng_state, rintf(S), p_SI);
     // NB - Make sure that state is read only once, and state_next is written only once
@@ -154,7 +155,7 @@ int main (int argc, char **argv) {
   data.p_RS = 1 - std::exp(- data.alpha);
 
   std::vector<size_t> index_y = {0};
-  Dust<sireinfect> dust_obj(data, 0, index_y, n_particles, 1, 0);
+  Dust<sireinfect> dust_obj(data, 0, index_y, n_particles, 1, 1);
 
   // Run particles
   std::vector<real_t> end_state(dust_obj.n_particles() * dust_obj.n_state());
