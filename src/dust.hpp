@@ -257,11 +257,11 @@ public:
                                             _particles.size(),
                                             this->step(),
                                             step_end);
-    cudaDeviceSynchronize();
     // write step end back to particles
     for (size_t i = 0; i < _particles.size(); ++i) {
       _particles[i].set_step(step_end);
     }
+    cudaDeviceSynchronize();
   }
 
   void state(std::vector<real_t>& end_state) {
@@ -337,12 +337,6 @@ private:
   real_t** _particle_y_addrs;
   real_t** _particle_y_swap_addrs;
   uint64_t* _rng_state;
-
-/*
-  rng_t& pick_generator(const size_t i) {
-    return _rng(i % _rng.size());
-  }
-  */
 };
 
 #endif
