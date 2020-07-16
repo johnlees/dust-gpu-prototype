@@ -14,8 +14,8 @@
 #include <omp.h>
 #endif
 
-#include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <thrust/swap.h>
 
 // Error checking of dynamic memory allocation on device
 // https://stackoverflow.com/a/14038590
@@ -71,25 +71,59 @@ public:
     _step(step),
     _y(_model.initial(_step)),
     _y_swap(_model.size()) {
-      _y_device = _y;
-      _y_swap_device = _y_swap;
+      cdpErrchk(cudaMalloc((void** )&_y_device, _y.size() * sizeof(real_t)));
+      cdpErrchk(cudaMemcpy(_y_device, _y.data(), _y.size() * sizeof(real_t),
+              cudaMemcpyDefault));
+      cdpErrchk(cudaMalloc((void** )&_y_swap_device, _y_swap.size() * sizeof(real_t)));
+      cdpErrchk(cudaMemcpy(_y_swap_device, _y_swap.data(), _y_swap.size() * sizeof(real_t),
+              cudaMemcpyDefault));
+      cudaDeviceSynchronize();
   }
 
-  real_t * y_addr() { return thrust::raw_pointer_cast(&_y_device[0]); };
-  real_t * y_swap_addr() { return thrust::raw_pointer_cast(&_y_swap_device[0]); };
+  ~Particle() {
+    cdpErrchk(cudaFree(_y_device));
+    cdpErrchk(cudaFree(_y_swap_device));
+  }
+
+  Particle(Particle&& other) noexcept :
+    _model(std::move(other._model)),
+    _step(std::move(other._step)),
+    _y(std::move(other._y)),
+    _y_swap(std::move(other._y_swap)),
+    _y_device(std::exchange(other._y_device, nullptr)),
+    _y_swap_device(std::exchange(other._y_swap_device, nullptr))
+  {}
+
+  Particle& operator=(Particle&& other) {
+    if (this != &other) {
+      cdpErrchk(cudaFree(_y_device));
+      cdpErrchk(cudaFree(_y_swap_device));
+
+      std::swap(_model, other._model);
+      std::swap(_step, other._step);
+      std::swap(_y, other._y);
+      std::swap(_y_swap, other._y_swap);
+      _y_device = std::exchange(other._y_device, nullptr);
+      _y_swap_device = std::exchange(other._y_swap_device, nullptr);
+    }
+    return *this;
+	}
+
+  real_t * y_addr() { return _y_device; };
+  real_t * y_swap_addr() { return _y_swap_device; };
 
   void state(const std::vector<size_t>& index_y,
              typename std::vector<real_t>::iterator end_state) {
     // TODO: efficiency of copying whole state each time, when only some of it
     // is used? Random access would be better, if possible
-    _y = _y_device;
+    y_to_host();
     for (size_t i = 0; i < index_y.size(); ++i) {
       *(end_state + i) = _y[index_y[i]];
     }
   }
 
   void state_full(typename std::vector<real_t>::iterator end_state) {
-    _y = _y_device;
+    y_to_host();
     for (size_t i = 0; i < _y.size(); ++i) {
       *(end_state + i) = _y[i];
     }
@@ -108,26 +142,45 @@ public:
   }
 
   void swap() {
-    thrust::swap(_y_device, _y_swap_device);
+    thrust::device_ptr<real_t> y_ptr(_y_device);
+    thrust::device_ptr<real_t> y_swap_ptr(_y_swap_device);
+    thrust::swap(y_ptr, y_swap_ptr);
     // Necessary to swap on host too?:
-    _y = _y_device;
-    _y_swap = _y_swap_device;
-    std::swap(_y, _y_swap);
+    /*
+    thrust::copy(_y_device.begin(), _y_device.end(), _y.begin());
+    thrust::copy(_y_swap_device.begin(), _y_swap_device.end(), _y_swap.begin());
+    thrust::swap(_y, _y_swap);
+    cudaDeviceSynchronize();
+    */
   }
 
   void update(const Particle<T> other) {
     _y_swap = other._y;
-    _y_swap_device = _y_swap;
+    y_swap_to_device();
   }
 
 private:
+  // Delete copy
+  Particle ( const Particle & ) = delete;
+
   T _model;
   size_t _step;
 
-  thrust::host_vector<real_t> _y;
-  thrust::host_vector<real_t> _y_swap;
-  thrust::device_vector<real_t> _y_device;
-  thrust::device_vector<real_t> _y_swap_device;
+  std::vector<real_t> _y;
+  std::vector<real_t> _y_swap;
+  real_t * _y_device;
+  real_t * _y_swap_device;
+
+  void y_to_host() {
+    cdpErrchk(cudaMemcpy(_y.data(), _y_device, _y.size() * sizeof(real_t),
+              cudaMemcpyDefault));
+    cudaDeviceSynchronize();
+  }
+  void y_swap_to_device() {
+    cdpErrchk(cudaMemcpy(_y_swap_device, _y_swap.data(), _y_swap.size() * sizeof(real_t),
+              cudaMemcpyDefault));
+    cudaDeviceSynchronize();
+  }
 };
 
 template <typename T>
@@ -149,8 +202,8 @@ public:
     std::vector<real_t*> y_swap_ptrs;
     for (size_t i = 0; i < n_particles; ++i) {
       _particles.push_back(Particle<T>(data, step));
-      y_ptrs.push_back(_particles.back().y_addr());
-      y_swap_ptrs.push_back(_particles.back().y_swap_addr());
+      y_ptrs.push_back(_particles[i].y_addr());
+      y_swap_ptrs.push_back(_particles[i].y_swap_addr());
     }
     cdpErrchk(cudaMalloc((void** )&_particle_y_addrs, y_ptrs.size() * sizeof(real_t*)));
     cdpErrchk(cudaMemcpy(_particle_y_addrs, y_ptrs.data(), y_ptrs.size() * sizeof(real_t*),
@@ -173,6 +226,7 @@ public:
       }
       rng.jump();
     }
+    cudaDeviceSynchronize();
   }
 
   ~Dust() {
@@ -203,11 +257,11 @@ public:
                                             _particles.size(),
                                             this->step(),
                                             step_end);
+    cudaDeviceSynchronize();
     // write step end back to particles
     for (size_t i = 0; i < _particles.size(); ++i) {
       _particles[i].set_step(step_end);
     }
-    cudaDeviceSynchronize();
   }
 
   void state(std::vector<real_t>& end_state) {
