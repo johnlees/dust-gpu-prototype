@@ -204,10 +204,10 @@ public:
                                             this->step(),
                                             step_end);
     // write step end back to particles
-    cudaDeviceSynchronize();
     for (size_t i = 0; i < _particles.size(); ++i) {
       _particles[i].set_step(step_end);
     }
+    cudaDeviceSynchronize();
   }
 
   void state(std::vector<real_t>& end_state) {
@@ -270,7 +270,7 @@ public:
   }
 
 private:
-  // delete move and copy
+  // delete move and copy to avoid accidentally using them
   Dust ( const Dust & ) = delete;
   Dust ( Dust && ) = delete;
 

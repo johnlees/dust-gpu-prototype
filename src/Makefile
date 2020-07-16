@@ -28,7 +28,7 @@ endif
 CUDA_LDLIBS=-lcudadevrt -lcudart_static $(LDLIBS)
 
 CUDA_LDFLAGS = -L${CUDA_HOME}/targets/x86_64-linux/lib/stubs -L${CUDA_HOME}/targets/x86_64-linux/lib
-CUDAFLAGS += -Xcompiler -fPIC -Xptxas -dlcm=ca -Xcompiler -fopenmp --cudart static --relocatable-device-code=true -gencode arch=compute_75,code=sm_75
+CUDAFLAGS += -Xcompiler -fPIC -Xptxas -dlcm=ca -Xcompiler -fopenmp --cudart static --relocatable-device-code=true
 
 PROGRAMS=dust_test
 

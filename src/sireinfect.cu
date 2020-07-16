@@ -80,6 +80,7 @@ int main (int argc, char **argv) {
   char* I_ini_in = NULL;
   char* n_particles_in = NULL;
   char* n_steps_in = NULL;
+  char* tau_in = NULL;
 
   real_t alpha = 0.1;
   real_t beta = 0.2;
@@ -88,10 +89,11 @@ int main (int argc, char **argv) {
   int_t I_ini = 10;
   int_t n_particles = 100;
   int_t n_steps = 10000;
+  int_t tau = 0;
 
   opterr = 0;
 
-  while ((c = getopt (argc, argv, "a:b:g:S:I:p:s:")) != -1)
+  while ((c = getopt (argc, argv, "a:b:g:S:I:p:s:t:")) != -1)
     switch (c) {
       case 'a':
         alpha_in = optarg;
@@ -121,9 +123,13 @@ int main (int argc, char **argv) {
         n_steps_in = optarg;
         n_steps = atoi(n_steps_in);
         break;
+      case 't':
+        tau_in = optarg;
+        tau = atoi(tau_in);
+        break;
       case '?':
         if (optopt == 'a' || optopt == 'b' || optopt == 'g' || optopt == 'S' ||
-            optopt == 'I' || optopt == 'p'|| optopt == 's')
+            optopt == 'I' || optopt == 'p'|| optopt == 's' || optopt == 't')
           fprintf (stderr, "Option -%c requires an argument.\n", optopt);
         else if (isprint (optopt))
           fprintf (stderr, "Unknown option `-%c'.\n", optopt);
@@ -155,13 +161,43 @@ int main (int argc, char **argv) {
   data.p_RS = 1 - std::exp(- data.alpha);
 
   std::vector<size_t> index_y = {0};
-  Dust<sireinfect> dust_obj(data, 0, index_y, n_particles, 1, 1);
+  // Initial state, first step, index_y, n_particles, cpu_threads, seed
+  Dust<sireinfect> dust_obj(data, 0, index_y, n_particles, 2, 1);
 
   // Run particles
-  std::vector<real_t> end_state(dust_obj.n_particles() * dust_obj.n_state());
+  std::vector<real_t> state(dust_obj.n_particles() * dust_obj.n_state_full());
   auto start = std::chrono::steady_clock::now();
-  dust_obj.run(n_steps);
-  dust_obj.state(end_state);
+
+  if (tau <= 0 || tau > n_steps) {
+    dust_obj.run(n_steps);
+    // cudaDeviceSynchronize();
+    //printf("Run complete\n");
+
+    dust_obj.state_full(state);
+    //cudaDeviceSynchronize();
+    //printf("State complete\n");
+  } else {
+    int_t step = tau;
+    while (step < n_steps) {
+      dust_obj.run(step);
+      dust_obj.state_full(state);
+
+      // Print results
+      std::cout << "Step: " << step << std::endl;
+      std::cout << "P\tS\tI\tR" << std::endl;
+      for (size_t particle_idx = 0; particle_idx < dust_obj.n_particles(); particle_idx++) {
+        std::cout << particle_idx;
+        for (size_t partition_idx = 0; partition_idx < dust_obj.n_state_full(); partition_idx++) {
+          std::cout << "\t" << state[particle_idx * dust_obj.n_state_full() + partition_idx];
+        }
+        std::cout << std::endl;
+      }
+
+      step += tau;
+    }
+  }
+
+
   auto end = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed_seconds = end - start;
   std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
