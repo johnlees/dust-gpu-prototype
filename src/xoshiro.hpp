@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <limits>
+#include <stdio.h>
 
 // This is derived from http://prng.di.unimi.it/xoshiro256starstar.c
 // and http://prng.di.unimi.it/splitmix64.c, copies of which are
@@ -26,6 +27,7 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 __host__ __device__
 inline uint64_t gen_rand(uint64_t * state) {
   const uint64_t result = rotl(state[1] * 5, 7) * 9;
+  //printf("r:%lu s:%lu %lu %lu %lu\n", result, state[0], state[1], state[2], state[3]);
 
   const uint64_t t = state[1] << 17;
 
@@ -90,6 +92,7 @@ inline double device_unif_rand(uint64_t * state) {
   double rand =
     (__ddiv_rn(__ull2double_rn(gen_rand(state)),
                __ull2double_rn(UINT64_MAX)));
+  //printf("r:%f s:%lu %lu %lu %lu\n", rand, state[0], state[1], state[2], state[3]);
   return rand;
 }
 
@@ -113,8 +116,6 @@ inline Xoshiro::Xoshiro(uint64_t seed) {
 
 __host__
 inline void Xoshiro::set_seed(uint64_t seed) {
-  uint64_t _state[XOSHIRO_WIDTH];
-
   // normal brain: for i in 1:4
   // advanced brain: -funroll-loops
   // galaxy brain:

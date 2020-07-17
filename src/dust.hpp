@@ -44,8 +44,9 @@ void run_particles(T* model,
   for (int p_idx = index; p_idx < n_particles; p_idx += stride) {
     int curr_step = step;
     while (curr_step < step_end) {
-      //printf("idx:%d step:%d S:%f I:%f R:%f\n", p_idx, curr_step,
+      // printf("idx:%d step:%d S:%f I:%f R:%f\n", p_idx, curr_step,
       //  particle_y[p_idx][0], particle_y[p_idx][1], particle_y[p_idx][2]);
+      // printf("s:%lu %lu %lu %lu\n", rng_state[0], rng_state[1], rng_state[2], rng_state[3]);
       model->update(curr_step,
                     particle_y[p_idx],
                     rng_state + p_idx * XOSHIRO_WIDTH,
@@ -221,6 +222,7 @@ public:
     dust::Xoshiro rng(seed);
     for (int i = 0; i < n_particles; i++) {
       uint64_t* current_state = rng.get_rng_state();
+      // printf("s:%lu %lu %lu %lu\n", current_state[0], current_state[1], current_state[2], current_state[3]);
       for (int state_idx = 0; state_idx < XOSHIRO_WIDTH; state_idx++) {
         _rng_state[i * XOSHIRO_WIDTH + state_idx] = current_state[state_idx];
       }
