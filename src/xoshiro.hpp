@@ -16,6 +16,11 @@
 
 #define XOSHIRO_WIDTH 4
 
+struct pRNG {
+  uint64_t* rng_state,
+  size_t n_particles
+};
+
 namespace dust {
 
 __host__ __device__
@@ -23,20 +28,20 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
 }
 
-__host__ __device__
-inline uint64_t gen_rand(uint64_t * state) {
-  const uint64_t result = rotl(state[1] * 5, 7) * 9;
+__host__ __device
+inline uint64_t gen_rand(pRNG state) {
+  const uint64_t result = rotl(state.rng_state[1 * state.n_particles] * 5, 7) * 9;
 
-  const uint64_t t = state[1] << 17;
+  const uint64_t t = state.rng_state[1 * state.n_particles] << 17;
 
-  state[2] ^= state[0];
-  state[3] ^= state[1];
-  state[1] ^= state[2];
-  state[0] ^= state[3];
+  state.rng_state[2 * state.n_particles] ^= state.rng_state[0];
+  state.rng_state[3 * state.n_particles] ^= state.rng_state[1 * state.n_particles];
+  state.rng_state[1 * state.n_particles] ^= state[2];
+  state[0] ^= state.rng_state[3 * state.n_particles];
 
-  state[2] ^= t;
+  state.rng_state[2 * state.n_particles] ^= t;
 
-  state[3] = rotl(state[3], 45);
+  state.rng_state[3 * state.n_particles]= rotl(state.rng_state[3 * state.n_particles], 45);
 
   return result;
 }
@@ -86,7 +91,7 @@ private:
 };
 
 __device__
-inline double device_unif_rand(uint64_t * state) {
+inline double device_unif_rand(pRNG state) {
   double rand =
     (__ddiv_rn(__ull2double_rn(gen_rand(state)),
                __ull2double_rn(UINT64_MAX)));
@@ -94,7 +99,7 @@ inline double device_unif_rand(uint64_t * state) {
 }
 
 __device__
-inline float device_unif_randf(uint64_t * state) {
+inline float device_unif_randf(pRNG state) {
   return(__double2float_rn(device_unif_rand(state)));
 }
 

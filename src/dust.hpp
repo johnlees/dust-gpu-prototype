@@ -34,7 +34,7 @@ __global__
 void run_particles(T* model,
                   real_t** particle_y,
                   real_t** particle_y_swap,
-                  uint64_t* rng_state,
+                  pRNG rng,
                   size_t y_len,
                   size_t n_particles,
                   size_t step,
@@ -46,9 +46,10 @@ void run_particles(T* model,
     while (curr_step < step_end) {
       //printf("idx:%d step:%d S:%f I:%f R:%f\n", p_idx, curr_step,
       //  particle_y[p_idx][0], particle_y[p_idx][1], particle_y[p_idx][2]);
+      rng.rng_state++;
       model->update(curr_step,
                     particle_y[p_idx],
-                    rng_state + p_idx * XOSHIRO_WIDTH,
+                    rng,
                     particle_y_swap[p_idx]);
       curr_step++;
       real_t* tmp = particle_y[p_idx];
@@ -222,7 +223,7 @@ public:
     for (int i = 0; i < n_particles; i++) {
       uint64_t* current_state = rng.get_rng_state();
       for (int state_idx = 0; state_idx < XOSHIRO_WIDTH; state_idx++) {
-        _rng_state[i * XOSHIRO_WIDTH + state_idx] = current_state[state_idx];
+        _rng_state[state_idx * XOSHIRO_WIDTH + i] = current_state[state_idx];
       }
       rng.jump();
     }
@@ -252,7 +253,7 @@ public:
     run_particles<<<blockCount, blockSize>>>(_model,
                                             _particle_y_addrs,
                                             _particle_y_swap_addrs,
-                                            _rng_state,
+                                            get_rng(),
                                             _model->size(),
                                             _particles.size(),
                                             this->step(),
@@ -327,6 +328,8 @@ private:
   // delete move and copy to avoid accidentally using them
   Dust ( const Dust & ) = delete;
   Dust ( Dust && ) = delete;
+
+  pRNG get_rng() { return( pRNG( _rng_state, _particles.size()) ); }
 
   const std::vector<size_t> _index_y;
   const size_t _n_threads;

@@ -7,12 +7,12 @@ namespace dust {
 namespace distr {
 
 __device__
-double binomial_inversion(double n, double prob, uint64_t* rng_state) {
+double binomial_inversion(double n, double prob, pRNG rng) {
   double geom_sum = 0;
   double num_geom = 0;
 
   while (true) {
-    double r = device_unif_rand(rng_state);
+    double r = device_unif_rand(rng);
     double geom = ceil(log(r) / log1p(-prob));
     geom_sum += geom;
     if (geom_sum > n) {
@@ -39,7 +39,7 @@ inline double stirling_approx_tail(double k) {
 
 // https://www.tandfonline.com/doi/abs/10.1080/00949659308811496
 __device__
-inline double btrs(double n, double p, uint64_t* rng_state) {
+inline double btrs(double n, double p, pRNG rng) {
   // This is spq in the paper.
   const double stddev = sqrt(n * p * (1 - p));
 
@@ -54,8 +54,8 @@ inline double btrs(double n, double p, uint64_t* rng_state) {
   const double m = floor((n + 1) * p);
 
   while (true) {
-    double u = device_unif_rand(rng_state);
-    double v = device_unif_rand(rng_state);
+    double u = device_unif_rand(rng);
+    double v = device_unif_rand(rng);
     u = u - 0.5;
     double us = 0.5 - fabs(u);
     double k = floor((2 * a / us + b) * u + c);
@@ -91,7 +91,7 @@ inline double btrs(double n, double p, uint64_t* rng_state) {
 
 template <typename real_t, typename int_t>
 __device__
-int_t rbinom(uint64_t* rng_state, int_t n, real_t p) {
+int_t rbinom(pRNG rng, int_t n, real_t p) {
   int_t draw;
 
   // Early exit:
@@ -116,9 +116,9 @@ int_t rbinom(uint64_t* rng_state, int_t n, real_t p) {
   }
 
   if (n * q >= 10) {
-    draw = static_cast<int_t>(btrs(n, q, rng_state));
+    draw = static_cast<int_t>(btrs(n, q, rng));
   } else {
-    draw = static_cast<int_t>(binomial_inversion(n, q, rng_state));
+    draw = static_cast<int_t>(binomial_inversion(n, q, rng));
   }
 
   if (p > 0.5) {
