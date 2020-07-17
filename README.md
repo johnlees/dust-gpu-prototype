@@ -40,4 +40,28 @@ For debugging `make DEBUG=1`. For profiling `make PROFILE=1`.
 
 ## Validation
 
-TODO: We will write some CPU code to compare with
+Simulation from R on the CPU (in float mode)
+
+```r
+pkgload::load_all("tmp")
+obj <- sireinfect$new(list(I_ini = 10), 0, n_particles = 5, seed = 1)
+obj$run(10)
+#>      [,1] [,2] [,3] [,4] [,5]
+#> [1,]  999  958  981  983  978
+#> [2,]    6   37   20   18   21
+#> [3,]    5   15    9    9   11
+```
+
+Comparison on the CPU
+
+```
+./src/dust_test -p 5 -t 10 -s 11
+Step: 10
+P	S	I	R
+0	999	6	5
+1	958	37	15
+2	981	20	9
+3	983	18	9
+4	978	21	11
+elapsed time: 0.00094882s
+```
