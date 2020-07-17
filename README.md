@@ -3,13 +3,25 @@ Prototype code for CUDA version of dust
 
 Runs a stochastic SIRS model with many repeats (particles).
 
+## Cluster setup
+
+After cloning the repo, launch an interactive session requesting 1 GPU and 2 CPUs:
+```
+srun --ntasks=5 --nodes=1 --cpus-per-task=2 --partition=batch --time=4:00:00 --gres=gpu:1 --pty /bin/bash
+```
+
+Set up the compilers:
+```
+module load cuda nvcompilers
+```
+
 ## Compile
 
-Run `make`. 
+`cd src/` then run `make`.
 
 For debugging `make DEBUG=1`. For profiling `make PROFILE=1`.
 
-`make clean && make` to recompile.
+`make clean` to recompile.
 
 ## Run
 
@@ -23,4 +35,9 @@ For debugging `make DEBUG=1`. For profiling `make PROFILE=1`.
 -R number of initial recovered (int; default = 0)
 -p number of particles to run (int; default = 100)
 -s number of time steps to simulate each particle forward (int; default = 10000)
+-t print current populations every t time steps. 0->do not print (int; default = 0)
 ```
+
+## Validation
+
+TODO: We will write some CPU code to compare with
