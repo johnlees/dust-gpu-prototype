@@ -68,6 +68,39 @@ private:
   init_t internal;
 };
 
+class walk {
+public:
+  typedef int int_t;
+  typedef float real_t;
+  struct init_t {
+    real_t sd;
+  };
+  walk(const init_t& data) : internal(data) {
+    cdpErrchk(cudaMallocManaged((void** )&norm, sizeof(NormalDistribution<real_t>)));
+    *norm = NormalDistribution<real_t>();
+  }
+  ~walk() {
+    cdpErrchk(cudaFree(norm));
+  }
+  size_t size() const {
+    return 1;
+  }
+  std::vector<real_t> initial(size_t step) {
+    std::vector<real_t> ret = {0};
+    return ret;
+  }
+  __device__
+  void update(size_t step, const real_t * state, uint64_t * rng_state, real_t * state_next) {
+    real_t mean = state[0];
+    state_next[0] = norm->rnorm(mean, internal.sd);
+  }
+private:
+  init_t internal;
+  NormalDistribution<real_t>* norm;
+  walk ( const walk & ) = delete;
+  walk ( walk && ) = delete;
+};
+
 int main (int argc, char **argv) {
   typedef int int_t;
   typedef float real_t;
@@ -90,10 +123,11 @@ int main (int argc, char **argv) {
   int_t n_particles = 100;
   int_t n_steps = 10000;
   int_t tau = 0;
+  bool walk = false;
 
   opterr = 0;
 
-  while ((c = getopt (argc, argv, "a:b:g:S:I:p:s:t:")) != -1)
+  while ((c = getopt (argc, argv, "a:b:g:S:I:p:s:t:w")) != -1)
     switch (c) {
       case 'a':
         alpha_in = optarg;
@@ -127,6 +161,9 @@ int main (int argc, char **argv) {
         tau_in = optarg;
         tau = atoi(tau_in);
         break;
+      case 'w':
+        walk = true;
+        break;
       case '?':
         if (optopt == 'a' || optopt == 'b' || optopt == 'g' || optopt == 'S' ||
             optopt == 'I' || optopt == 'p'|| optopt == 's' || optopt == 't')
@@ -148,62 +185,102 @@ int main (int argc, char **argv) {
   cudaDeviceReset();
 
   // Set up dust object
-  sireinfect::init_t data;
-  data.initial_R = 0;
-  data.I_ini = I_ini;
-  data.alpha = alpha;
-  data.beta = beta;
-  data.gamma = gamma;
-  data.S_ini = S_ini;
-  data.initial_I = data.I_ini;
-  data.initial_S = data.S_ini;
-  data.p_IR = 1 - std::exp(- data.gamma);
-  data.p_RS = 1 - std::exp(- data.alpha);
+  if (walk) {
+    sireinfect::init_t data;
+    data.initial_R = 0;
+    data.I_ini = I_ini;
+    data.alpha = alpha;
+    data.beta = beta;
+    data.gamma = gamma;
+    data.S_ini = S_ini;
+    data.initial_I = data.I_ini;
+    data.initial_S = data.S_ini;
+    data.p_IR = 1 - std::exp(- data.gamma);
+    data.p_RS = 1 - std::exp(- data.alpha);
 
-  std::vector<size_t> index_y = {0};
-  // Initial state, first step, index_y, n_particles, cpu_threads, seed
-  Dust<sireinfect> dust_obj(data, 0, index_y, n_particles, 2, 1);
+    std::vector<size_t> index_y = {0};
+    // Initial state, first step, index_y, n_particles, cpu_threads, seed
+    Dust<sireinfect> dust_obj(data, 0, index_y, n_particles, 2, 1);
 
-  // Run particles
-  std::vector<real_t> state(dust_obj.n_particles() * dust_obj.n_state_full());
-  auto start = std::chrono::steady_clock::now();
+    // Run particles
+    std::vector<real_t> state(dust_obj.n_particles() * dust_obj.n_state_full());
+    auto start = std::chrono::steady_clock::now();
 
-  if (tau <= 0 || tau > n_steps) {
-    dust_obj.run(n_steps);
-    // cudaDeviceSynchronize();
-    //printf("Run complete\n");
+    if (tau <= 0 || tau > n_steps) {
+      dust_obj.run(n_steps);
+      // cudaDeviceSynchronize();
+      //printf("Run complete\n");
 
-    dust_obj.state_full(state);
-    //cudaDeviceSynchronize();
-    //printf("State complete\n");
-  } else {
-    int_t step = tau;
-    while (step < n_steps) {
-      dust_obj.run(step);
       dust_obj.state_full(state);
+      //cudaDeviceSynchronize();
+      //printf("State complete\n");
+    } else {
+      int_t step = tau;
+      while (step < n_steps) {
+        dust_obj.run(step);
+        dust_obj.state_full(state);
 
-      // Print results
-      std::cout << "Step: " << step << std::endl;
-      std::cout << "P\tS\tI\tR" << std::endl;
-      for (size_t particle_idx = 0; particle_idx < dust_obj.n_particles(); particle_idx++) {
-        std::cout << particle_idx;
-        for (size_t partition_idx = 0; partition_idx < dust_obj.n_state_full(); partition_idx++) {
-          std::cout << "\t" << state[particle_idx * dust_obj.n_state_full() + partition_idx];
+        // Print results
+        std::cout << "Step: " << step << std::endl;
+        std::cout << "P\tS\tI\tR" << std::endl;
+        for (size_t particle_idx = 0; particle_idx < dust_obj.n_particles(); particle_idx++) {
+          std::cout << particle_idx;
+          for (size_t partition_idx = 0; partition_idx < dust_obj.n_state_full(); partition_idx++) {
+            std::cout << "\t" << state[particle_idx * dust_obj.n_state_full() + partition_idx];
+          }
+          std::cout << std::endl;
         }
-        std::cout << std::endl;
-      }
 
-      step += tau;
+        step += tau;
+      }
+    }
+  } else {
+    walk::init_t data;
+    data.sd = 1;
+
+    std::vector<size_t> index_y = {0};
+    // Initial state, first step, index_y, n_particles, cpu_threads, seed
+    Dust<walk> dust_obj(data, 0, index_y, n_particles, 2, 1);
+
+    // Run particles
+    std::vector<real_t> state(dust_obj.n_particles() * dust_obj.n_state_full());
+    auto start = std::chrono::steady_clock::now();
+
+    if (tau <= 0 || tau > n_steps) {
+      dust_obj.run(n_steps);
+      // cudaDeviceSynchronize();
+      //printf("Run complete\n");
+
+      dust_obj.state_full(state);
+      //cudaDeviceSynchronize();
+      //printf("State complete\n");
+    } else {
+      int_t step = tau;
+      while (step < n_steps) {
+        dust_obj.run(step);
+        dust_obj.state_full(state);
+
+        // Print results
+        std::cout << "Step: " << step << std::endl;
+        std::cout << "P\tS\tI\tR" << std::endl;
+        for (size_t particle_idx = 0; particle_idx < dust_obj.n_particles(); particle_idx++) {
+          std::cout << particle_idx;
+          for (size_t partition_idx = 0; partition_idx < dust_obj.n_state_full(); partition_idx++) {
+            std::cout << "\t" << state[particle_idx * dust_obj.n_state_full() + partition_idx];
+          }
+          std::cout << std::endl;
+        }
+
+        step += tau;
+      }
     }
   }
+
 
 
   auto end = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed_seconds = end - start;
   std::cout << "elapsed time: " << elapsed_seconds.count() << "s\n";
-
-  // Print results
-  // TODO: want a flag, run a few steps, print state at each
 
   return 0;
 }

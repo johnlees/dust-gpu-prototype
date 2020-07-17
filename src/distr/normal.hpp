@@ -49,7 +49,7 @@ class NormalDistribution<float> {
   NormalDistribution() : _buffered(false) {}
 
   __device__
-  float operator()(uint64_t* rng_state) {
+  inline float rnorm(uint64_t* rng_state) {
     if (buffered) {
       buffered = false;
       return result[1];
@@ -73,7 +73,7 @@ class NormalDistribution<double> {
   NormalDistribution() : _buffered(false) {}
 
   __device__
-  double operator()(uint64_t* rng_state) {
+  inline double rnorm(uint64_t* rng_state) {
     if (buffered) {
       buffered = false;
       return result[1];

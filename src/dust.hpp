@@ -5,6 +5,7 @@
 // #include "rng.hpp"
 #include "xoshiro.hpp"
 #include "distr/binomial.hpp"
+#include "distr/normal.hpp"
 
 #include <utility>
 #ifdef _OPENMP
