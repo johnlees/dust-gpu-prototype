@@ -1,2 +1,2 @@
-useDynLib("sireinfectcaa6dd97")
+useDynLib("sireinfect", .registration = TRUE)
 import(Rcpp)

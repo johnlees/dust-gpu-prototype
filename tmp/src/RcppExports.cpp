@@ -6,23 +6,22 @@
 using namespace Rcpp;
 
 // dust_sireinfect_alloc
-SEXP dust_sireinfect_alloc(Rcpp::List r_data, size_t step, size_t n_particles, size_t n_threads, size_t n_generators, size_t seed);
-RcppExport SEXP _sireinfectcaa6dd97_dust_sireinfect_alloc(SEXP r_dataSEXP, SEXP stepSEXP, SEXP n_particlesSEXP, SEXP n_threadsSEXP, SEXP n_generatorsSEXP, SEXP seedSEXP) {
+SEXP dust_sireinfect_alloc(Rcpp::List r_data, size_t step, size_t n_particles, size_t n_threads, size_t seed);
+RcppExport SEXP _sireinfect_dust_sireinfect_alloc(SEXP r_dataSEXP, SEXP stepSEXP, SEXP n_particlesSEXP, SEXP n_threadsSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< Rcpp::List >::type r_data(r_dataSEXP);
     Rcpp::traits::input_parameter< size_t >::type step(stepSEXP);
     Rcpp::traits::input_parameter< size_t >::type n_particles(n_particlesSEXP);
     Rcpp::traits::input_parameter< size_t >::type n_threads(n_threadsSEXP);
-    Rcpp::traits::input_parameter< size_t >::type n_generators(n_generatorsSEXP);
     Rcpp::traits::input_parameter< size_t >::type seed(seedSEXP);
-    rcpp_result_gen = Rcpp::wrap(dust_sireinfect_alloc(r_data, step, n_particles, n_threads, n_generators, seed));
+    rcpp_result_gen = Rcpp::wrap(dust_sireinfect_alloc(r_data, step, n_particles, n_threads, seed));
     return rcpp_result_gen;
 END_RCPP
 }
 // dust_sireinfect_run
 SEXP dust_sireinfect_run(SEXP ptr, size_t step_end);
-RcppExport SEXP _sireinfectcaa6dd97_dust_sireinfect_run(SEXP ptrSEXP, SEXP step_endSEXP) {
+RcppExport SEXP _sireinfect_dust_sireinfect_run(SEXP ptrSEXP, SEXP step_endSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< SEXP >::type ptr(ptrSEXP);
@@ -33,7 +32,7 @@ END_RCPP
 }
 // dust_sireinfect_reset
 SEXP dust_sireinfect_reset(SEXP ptr, Rcpp::List r_data, size_t step);
-RcppExport SEXP _sireinfectcaa6dd97_dust_sireinfect_reset(SEXP ptrSEXP, SEXP r_dataSEXP, SEXP stepSEXP) {
+RcppExport SEXP _sireinfect_dust_sireinfect_reset(SEXP ptrSEXP, SEXP r_dataSEXP, SEXP stepSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< SEXP >::type ptr(ptrSEXP);
@@ -45,7 +44,7 @@ END_RCPP
 }
 // dust_sireinfect_state
 SEXP dust_sireinfect_state(SEXP ptr, SEXP r_index);
-RcppExport SEXP _sireinfectcaa6dd97_dust_sireinfect_state(SEXP ptrSEXP, SEXP r_indexSEXP) {
+RcppExport SEXP _sireinfect_dust_sireinfect_state(SEXP ptrSEXP, SEXP r_indexSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< SEXP >::type ptr(ptrSEXP);
@@ -56,7 +55,7 @@ END_RCPP
 }
 // dust_sireinfect_step
 size_t dust_sireinfect_step(SEXP ptr);
-RcppExport SEXP _sireinfectcaa6dd97_dust_sireinfect_step(SEXP ptrSEXP) {
+RcppExport SEXP _sireinfect_dust_sireinfect_step(SEXP ptrSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< SEXP >::type ptr(ptrSEXP);
@@ -66,7 +65,7 @@ END_RCPP
 }
 // dust_sireinfect_reorder
 void dust_sireinfect_reorder(SEXP ptr, Rcpp::IntegerVector r_index);
-RcppExport SEXP _sireinfectcaa6dd97_dust_sireinfect_reorder(SEXP ptrSEXP, SEXP r_indexSEXP) {
+RcppExport SEXP _sireinfect_dust_sireinfect_reorder(SEXP ptrSEXP, SEXP r_indexSEXP) {
 BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type ptr(ptrSEXP);
     Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type r_index(r_indexSEXP);
@@ -76,16 +75,16 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_sireinfectcaa6dd97_dust_sireinfect_alloc", (DL_FUNC) &_sireinfectcaa6dd97_dust_sireinfect_alloc, 6},
-    {"_sireinfectcaa6dd97_dust_sireinfect_run", (DL_FUNC) &_sireinfectcaa6dd97_dust_sireinfect_run, 2},
-    {"_sireinfectcaa6dd97_dust_sireinfect_reset", (DL_FUNC) &_sireinfectcaa6dd97_dust_sireinfect_reset, 3},
-    {"_sireinfectcaa6dd97_dust_sireinfect_state", (DL_FUNC) &_sireinfectcaa6dd97_dust_sireinfect_state, 2},
-    {"_sireinfectcaa6dd97_dust_sireinfect_step", (DL_FUNC) &_sireinfectcaa6dd97_dust_sireinfect_step, 1},
-    {"_sireinfectcaa6dd97_dust_sireinfect_reorder", (DL_FUNC) &_sireinfectcaa6dd97_dust_sireinfect_reorder, 2},
+    {"_sireinfect_dust_sireinfect_alloc", (DL_FUNC) &_sireinfect_dust_sireinfect_alloc, 5},
+    {"_sireinfect_dust_sireinfect_run", (DL_FUNC) &_sireinfect_dust_sireinfect_run, 2},
+    {"_sireinfect_dust_sireinfect_reset", (DL_FUNC) &_sireinfect_dust_sireinfect_reset, 3},
+    {"_sireinfect_dust_sireinfect_state", (DL_FUNC) &_sireinfect_dust_sireinfect_state, 2},
+    {"_sireinfect_dust_sireinfect_step", (DL_FUNC) &_sireinfect_dust_sireinfect_step, 1},
+    {"_sireinfect_dust_sireinfect_reorder", (DL_FUNC) &_sireinfect_dust_sireinfect_reorder, 2},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_sireinfectcaa6dd97(DllInfo *dll) {
+RcppExport void R_init_sireinfect(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

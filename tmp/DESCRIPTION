@@ -1,4 +1,4 @@
-Package: sireinfectcaa6dd97
-LinkingTo: Rcpp
+Package: sireinfect
+LinkingTo: Rcpp, dust
 Imports: Rcpp
 Version: 0.0.1
